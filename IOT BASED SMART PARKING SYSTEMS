@@ -1,0 +1,238 @@
+#define BLYNK_TEMPLATE_ID "TMPL31RrGpbWC"
+#define BLYNK_TEMPLATE_NAME "IOT BASED PARKING MONITORING"
+#define BLYNK_AUTH_TOKEN "z57bX7fdKon-8w8Yl9FlDFgZ1DYkfMjc"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <ESP32Servo.h>
+#include <LiquidCrystal_I2C.h> 
+#include <Wire.h>
+
+#define closeDEG 180
+#define openDEG 90
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+Servo servoMain;
+
+const int ir1 = 33;
+const int ir2 = 32;
+const int ir3 = 25;
+
+char ssid[] = "electronics";
+char pass[] = "wifihotspot";
+
+boolean f1, f2, f3;
+unsigned char b1[13] = "$0002888662";
+unsigned char b2[13] = "$0002888595";
+
+int mct, n, n1;
+boolean test;
+String line;
+uint32_t tsLastReport = 0;
+int ir, entry;
+char r1, r2;
+bool uloadf1, uloadf2, uloadf3;
+unsigned char rfid[18];
+unsigned char rfid1[18];
+String inputString = "";
+String command = "";
+boolean stringComplete = false;
+int slot1, slot2,out;
+int in1, in2, t1, t2;
+
+void setup()
+{
+  Serial.begin(9600);
+  servoMain.attach(15);
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+  lcd.init();
+  lcd.backlight();
+  
+  lcd.setCursor(0, 0);
+  lcd.print("IOT BASED SMART ");
+  lcd.setCursor(0, 1);
+  lcd.print("VEHICLE PARKING");
+
+  pinMode(ir1 , INPUT);
+  pinMode(ir2 , INPUT);
+  pinMode(ir3 , INPUT);
+
+  servoMain.write(closeDEG);
+  lcd.clear();
+}
+void loop()
+{
+  Blynk.run();
+
+  out=digitalRead(ir3);
+
+  lcd.setCursor(0, 0);
+  lcd.print("S1:");
+  lcd.print(slot1);
+  lcd.print(" S2:");
+  lcd.print(slot2);
+
+  if (out == 0)
+  {
+    lcd.clear();
+    lcd.setCursor(0, 1);
+    lcd.print("GATE OPEN ");
+    delay(1000);
+    servoMain.write(openDEG);
+    delay(3000);
+    servoMain.write(closeDEG);
+    lcd.setCursor(0, 1);
+    lcd.print("GATE CLOSE");
+   }
+ 
+  if(digitalRead(ir1) == 1 && f1==0)
+  {
+    f1=1;
+    slot1 = 0;
+    Blynk.virtualWrite(V0, slot1);
+    Blynk.virtualWrite(V2, "SLOT1 EMPTY");
+  }
+  if(digitalRead(ir1) == 0 && f1==1)
+  {
+    f1=0;
+    slot1 = 1;
+    Blynk.virtualWrite(V0, slot1);
+    Blynk.virtualWrite(V2, "SLOT1 FULL ");
+  }
+  if(digitalRead(ir2) == 1 && f2==0)
+  {
+    f2=1;
+    slot2 = 0;
+    Blynk.virtualWrite(V1, slot2);
+    Blynk.virtualWrite(V3, "SLOT2 EMPTY");
+  }
+  if(digitalRead(ir2) == 0 && f2==1)
+  {
+    f2=0;
+    slot2 = 1;
+    Blynk.virtualWrite(V1, slot2);
+    Blynk.virtualWrite(V3, "SLOT2 FULL ");
+  }
+  
+  if (stringComplete)
+  {
+    mct++;
+    if (mct >= 10)
+    {
+      lcd.setCursor(0, 0);
+      Serial.println(" ");
+      for (n1 = 0; n1 <= 10; n1++)
+      {
+        rfid[n1] = rfid1[n1];
+      }
+      r1 = String_Compare(b1, rfid1, 8);
+      r2 = String_Compare(b2, rfid1, 8);
+      Serial.println(" ");
+      Serial.print("r2:");
+      Serial.print(r2);
+      Serial.println(" ");
+      Serial.println(" ");
+      Serial.print("r1:");
+      Serial.print(r1);
+      Serial.println(" ");
+
+      if (r1 == 0)
+      {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("WelCome A");
+        lcd.setCursor(0, 1);
+        lcd.print("GATE OPEN ");
+        delay(1000);
+        servoMain.write(openDEG);
+        delay(3000);
+        servoMain.write(closeDEG);
+        lcd.setCursor(0, 1);
+        lcd.print("GATE CLOSE");
+        Serial.println("WelCome A");
+      }
+
+      else if (r2 == 0)
+      {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("WelCome B");
+        lcd.setCursor(0, 1);
+        lcd.print("GATE OPEN ");
+        delay(1000);
+        servoMain.write(openDEG);
+        delay(3000);
+        servoMain.write(closeDEG);
+        lcd.setCursor(0, 1);
+        lcd.print("GATE CLOSE");
+        Serial.println("WelCome B");
+      }
+      stringComplete = false;
+    //  delay(1500);
+      n = 0;
+      mct = 0;
+      for (n1 = 0; n1 <= 18; n1++)
+      {
+        rfid[n1] = ' ';
+        rfid1[n1] = ' ';
+      }
+      delay(1500);
+      for (n1 = 0; n1 <= 18; n1++)
+      {
+        rfid[n1] = ' ';
+        rfid1[n1] = ' ';
+      }
+      stringComplete = false;
+      n = 0;
+      mct = 0;
+      mct=0;
+    }
+  }
+  
+}
+int String_Compare(unsigned char src[], unsigned char dest[], unsigned char v)
+{
+  int i;
+  for (i = 0; i <= v && src[i] == dest[i]; i++);
+  return src[i] - dest[i];
+}
+
+void serialEvent()
+{
+  while (Serial.available())
+  {
+    char inChar = (char)Serial.read();
+    rfid1[n] = inChar;
+    n++;
+    if (n >= 12)
+    {
+      stringComplete = true;
+    }
+  }
+}
+void WriteIntToLCD4digit(unsigned int dat)
+{
+  lcd.print(dat / 1000);
+  lcd.print((dat % 1000) / 100);
+  lcd.print(((dat % 1000) % 100) / 10);
+  lcd.print(((dat % 1000) % 100) % 10);
+}
+void WriteIntToLCD3digit(unsigned int dat)
+{
+  lcd.print(dat / 100);
+  lcd.print((dat % 100) / 10);
+  lcd.print((dat % 100) % 10);
+}
+void WriteIntToLCD2digit(unsigned int dat)
+{
+  lcd.print(dat / 10);
+  lcd.print(dat % 10);
+}
+
+/*
+semayar909@poisonword.com
+iot@12345
+
+*/
+
