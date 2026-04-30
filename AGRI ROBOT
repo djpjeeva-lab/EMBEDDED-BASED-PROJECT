@@ -1,0 +1,172 @@
+// ESP32,DC MOTOR, SOIL MOISTURE SENSOR 
+#define BLYNK_TEMPLATE_ID "TMPL39IyVJORu"
+#define BLYNK_TEMPLATE_NAME "pump control"
+#define BLYNK_AUTH_TOKEN "O980rziQGlVEfkjiSRMP2CgcpMNB56qo"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <ESP32Servo.h>
+#include <ESP32Servo.h>  
+#include <LiquidCrystal_I2C.h> 
+#include <Wire.h>
+
+Servo servo1;
+
+char ssid[] = "electronics";
+char pass[] = "wifihotspot";
+
+// I2C LCD connections (explicitly set for ESP32)
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Adjust I2C address if needed (0x27 is common)
+#define I2C_SDA_PIN 21
+#define I2C_SCL_PIN 22
+
+// L298N Motor Driver Pins
+const int m1fPin = 14;
+const int m1rPin = 27;
+const int m2fPin = 25;
+const int m2rPin = 26;
+const int motor_S = 23;
+const int pump = 16;
+const int soil_moiture_pin = 18;
+
+int t,soil_moiture;
+
+boolean f1,f2,servo_enable ;
+
+void updateLCD(String line1, String line2) 
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(line1);
+  lcd.setCursor(0, 1);
+  lcd.print(line2);
+}
+
+// BLYNK_WRITE functions for all controls digitalWrite(m1fPin, HIGH);
+  BLYNK_WRITE(V0) { if (param.asInt() == 1) { run_forward();lcd.setCursor(0, 1);lcd.print("Moving Forward"); } else { stop_run();lcd.setCursor(0, 1);lcd.print(" Stopped  "); } }
+  BLYNK_WRITE(V1) { if (param.asInt() == 1) { run_reverse();lcd.setCursor(0, 1);lcd.print("Moving Backward"); } else { stop_run();lcd.setCursor(0, 1);lcd.print(" Stopped  "); } }
+  BLYNK_WRITE(V2) { if (param.asInt() == 1) { run_left();lcd.setCursor(0, 1);lcd.print("Moving Left      "); }else { stop_run();lcd.setCursor(0, 1);lcd.print(" Stopped  "); } }
+  BLYNK_WRITE(V3) { if (param.asInt() == 1) { run_right();lcd.setCursor(0, 1);lcd.print("Moving Right    "); } else { stop_run();lcd.setCursor(0, 1);lcd.print(" Stopped  "); } }
+  BLYNK_WRITE(V4) { if (param.asInt() == 1) { stop_run(); lcd.setCursor(0, 1);lcd.print("Moving Forward"); } else { stop_run(); lcd.setCursor(0, 1);lcd.print(" Stopped  "); } }
+  BLYNK_WRITE(V6) { if (param.asInt() == 1) { digitalWrite(pump, HIGH);servo_enable=1; lcd.setCursor(0, 1);lcd.print("Pump ON"); } else { digitalWrite(pump, LOW);servo_enable=0; lcd.setCursor(0, 1);lcd.print(" Stopped  "); } }
+
+void setup() 
+{
+  Serial.begin(9600);
+  servo1.attach(17);
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass); // Connects to WiFi and Blynk
+  lcd.init();
+  lcd.backlight();
+  updateLCD("connect wifi:", "Initializing...");
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+
+  pinMode(m1fPin, OUTPUT);
+  pinMode(m1rPin, OUTPUT);
+  pinMode(m2fPin, OUTPUT);
+  pinMode(m2rPin, OUTPUT);
+  pinMode(motor_S, OUTPUT);
+  pinMode(pump, OUTPUT);
+  pinMode(soil_moiture_pin, INPUT);
+  digitalWrite(pump, LOW);
+
+  servo1.write(90);
+  updateLCD("Status:", "Ready");
+  lcd.clear();
+
+}
+
+void loop()
+ {
+  Blynk.run(); // Keep Blynk connected and handle commands
+
+  soil_moiture=digitalRead(soil_moiture_pin);
+  
+  t++;
+  lcd.setCursor(0, 0);
+  lcd.print("SM:");
+  lcd.print(soil_moiture);
+  lcd.setCursor(9, 0);
+  lcd.print(" ");
+  lcd.print(t);
+
+  if (t> 30 ) 
+   {
+    t=0;
+    Blynk.virtualWrite(V5, soil_moiture);
+   }
+
+  if(servo_enable==1)
+    {
+      servo1.write(0);
+      delay(1000);
+      servo1.write(90);
+      delay(1000);
+      servo1.write(180);
+      delay(1000);
+      servo1.write(90);
+      delay(1000);
+    }
+  
+  delay(100);
+}
+
+void WriteIntToLCD4digit(unsigned int dat)
+{
+  lcd.print(dat / 1000);
+  lcd.print((dat % 1000) / 100);
+  lcd.print(((dat % 1000) % 100) / 10);
+  lcd.print(((dat % 1000) % 100) % 10);
+}
+void WriteIntToLCD3digit(unsigned int dat)
+{
+  lcd.print(dat / 100);
+  lcd.print((dat % 100) / 10);
+  lcd.print((dat % 100) % 10);
+}
+void WriteIntToLCD2digit(unsigned int dat)
+{
+  lcd.print(dat / 10);
+  lcd.print(dat % 10);
+}
+
+void stop_run()
+{
+  digitalWrite(m1fPin, HIGH);
+  digitalWrite(m1rPin, HIGH);
+  digitalWrite(m2fPin, HIGH);
+  digitalWrite(m2rPin, HIGH);
+}
+void run_forward()
+{
+  digitalWrite(m1fPin, LOW);
+  digitalWrite(m1rPin, HIGH);
+  digitalWrite(m2fPin, LOW);
+  digitalWrite(m2rPin, HIGH);
+}
+void run_reverse()
+{
+  digitalWrite(m1fPin, HIGH);
+  digitalWrite(m1rPin, LOW);
+  digitalWrite(m2fPin, HIGH);
+  digitalWrite(m2rPin, LOW);
+}
+void run_right()
+{
+  digitalWrite(m1fPin, HIGH);
+  digitalWrite(m1rPin, HIGH);
+  digitalWrite(m2fPin, LOW);
+  digitalWrite(m2rPin, HIGH);
+}
+void run_left()
+{
+  digitalWrite(m1fPin, LOW);
+  digitalWrite(m1rPin, HIGH);
+  digitalWrite(m2fPin, HIGH);
+  digitalWrite(m2rPin, HIGH);
+}
+
+
+/*
+sivihoj926@dwseal.com
+iot@12345
+*/
